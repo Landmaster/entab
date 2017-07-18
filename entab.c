@@ -1,3 +1,6 @@
+// Program to entab files.
+
+#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -70,24 +73,28 @@ int main(int argc, char *argv[]) {
 	
 	char buf[1024];
 	const char *p;
-	int replace = 1;
+	bool replace = true;
 	size_t i = 0;
 	while (fgets(buf,sizeof buf,infile)) {
 		p = buf;
 		while (replace) {
-			if (*p == ' ') {
-				if (++i >= arguments.nspaces) {
+			if (*p == ' ') { // space?
+				if (++i >= arguments.nspaces) { // keep track of spaces, and replace when the threshold is reached.
 					fputs("\t",outfile);
 					i = 0;
 				}
 				++p;
-			} else {
-				replace = 0;
+			} else if (*p == '\t') { // ignore already-present tabs
+				fputs("\t",outfile);
+				i = 0;
+				++p;
+			} else { // disable entabbing after all of the whitespace characters have been handled
+				replace = false;
 			}
 		}
 		fputs(p,outfile);
 		if (buf[strlen(buf)-1] == '\n') {
-			replace = 1;
+			replace = true;
 			i = 0;
 		}
 	}
