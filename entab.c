@@ -13,6 +13,7 @@ static char args_doc[] = "[FILE]";
 static struct argp_option options[] = { 
 	{"spaces", 'n', "NSPACES", 0, "Number of spaces"},
 	{"output", 'o', "FILE", 0, "File to output to instead of stdout"},
+	{"overwrite", 'w', 0, 0, "Overwrite the input file"},
 	{ 0 } 
 };
 
@@ -20,6 +21,7 @@ struct arguments {
 	size_t nspaces;
 	const char *infile;
 	const char *outfile;
+	bool overwrite;
 };
 
 static bool is_same_file(const char* sA, const char* sB) {
@@ -60,29 +62,31 @@ static void external_entab(FILE *infile, FILE *outfile, int nspaces) {
 	}
 }
 
-static void internal_entab(FILE *file, int nspaces) {
-	FILE *temp = tmpfile();
-	external_entab(file, temp, nspaces);
-	char buf[1024];
-	while (fgets(buf, sizeof buf,temp)) {
-		fputs(buf, file);
-	}
-}
-
 static error_t parse_opt(int key, char *arg, struct argp_state *state) {
 	struct arguments *arguments = state->input;
 	switch (key) {
 		case 'n':
 			sscanf(arg,"%zd",&arguments->nspaces);
 			break;
+		case 'w':
+			arguments->overwrite = true;
+			break;
 		case 'o':
-			arguments->outfile = arg;
+			if (!arguments->overwrite) {
+				arguments->outfile = arg;
+			} else {
+				argp_usage(state);
+			}
 			break;
 		case ARGP_KEY_ARG:
-			if (!arguments->infile)
+			if (!arguments->infile) {
 				arguments->infile = arg;
-			else
+				if (arguments->overwrite) {
+					arguments->outfile = arguments->infile;
+				}
+			} else {
 				argp_usage(state);
+			}
 			break;
 		case ARGP_KEY_END:
 			if (!arguments->nspaces) argp_usage(state);
@@ -112,7 +116,15 @@ int main(int argc, char *argv[]) {
 	}
 	
 	if (same) {
-		internal_entab(infile, arguments.nspaces);
+		FILE *temp = tmpfile();
+		external_entab(infile, temp, arguments.nspaces);
+		fclose(infile); infile = stdin;
+		outfile = fopen(arguments.infile, "wb");
+		fseek(temp, 0, SEEK_SET);
+		char buf[1024];
+		while (fgets(buf, sizeof buf,temp)) {
+			fputs(buf, outfile);
+		}
 	} else {
 		if (arguments.outfile) {
 			outfile = fopen(arguments.outfile,"wb");
